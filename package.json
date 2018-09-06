@@ -1,0 +1,16 @@
+{
+  "name": "public_folder",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "p5": "^0.7.2",
+    "phaser": "^3.12.0",
+    "three": "^0.96.0"
+  }
+}
