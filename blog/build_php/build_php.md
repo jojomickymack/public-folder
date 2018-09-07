@@ -73,37 +73,6 @@ Whenever you need to reload the config file, do the command below.
 
 Note: The user you put in your nginx.conf needs to match the user that owns the webapp and there's also a place where the username needs to entered in /etc/php/7.2/php-fpm/pool.d/www.conf. If you are getting permissions related errors when trying to access your website, that might be the cause. Obviously when troubleshooting you should start first with the nginx error logs.
 
-## Setting it up on Windows
-
-As an experiment, I wanted to use the same setup on windows instead of apache. Here's where you can download [nginx for windows](https://nginx.org/en/docs/windows.html). The windows php download mentioned earlier includes a 'php-cgi.exe' binary, which can be run with an argument to set the port it will listen on as shown below.
-
-	php-cgi.exe -b 127.0.0.1:9191
-
-The challenging part is setting up nginx and php-cgi as a windows service. For apache, this is simple - the httpd.exe binary is already set up to work with the windows service requirements, so installing it is simple with the command below.
-
-	httpd.exe -k install -n "apache"
-
-You'll then be able to start and stop it with commands like these (net and sc are native windows command line tools for managing services).
-
-	net start apache
-	sc config apache start=disabled
-	sc delete apache
-
-If you try to install nginx.exe with the -k flag, it won't work. Fortunately the solution for getting nginx and php-cgi is made really simple with this tool, the [non sucking service manager](https://nssm.cc). Basically, you download this and put the binary in your system path, and you can set up a new service with just a 'nssm install nginx', and a window will pop up where you set the location of the nginx executable. For php, it's exactly the same but you put the command line argument '-b 127.0.0.1:9191' in the arguments field.
-
-After doing that, you can manage the services as normal with the net and sc tools as shown previously.
-
-You'll just need to add the index type for index.php and add the php locatation setting in your nginx.conf as noted before. I got this snippit directly from the [nginx instructions](https://www.nginx.com/resources/wiki/start/topics/examples/phpfastcgionwindows/).
-
-    location ~ \.php$ {
-        fastcgi_pass   127.0.0.1:9191;
-        fastcgi_index  index.php;
-        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
-        include        fastcgi_params;
-    }
-
-You can reload the nginx config using 'net stop' and 'net start' - that's pretty much all there is to it.
-
 ## Php Problems
 
 At this point, you should be able to check your server and see some sort of response in the browser. <?php phpinfo(); ?> is a nice way to see if php is online. You'll want to install composer as well, which is available in linux package managers, it's available in chromebrew, and it can be downloaded as a .phar file and placed in your system path.
