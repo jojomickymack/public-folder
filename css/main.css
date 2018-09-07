@@ -1,0 +1,139 @@
+body {
+     background-image: url('/img/paisley02.jpg');
+}
+
+ul {
+    padding-top: 20px;
+    list-style-type: none;
+}
+
+li {
+    padding: 10px;
+}
+
+header, footer {
+    background-color: white;
+    margin: 25px;
+    padding: 25px;
+    border-style: solid;
+    border-color: black;
+    border-width: 5px;
+    border-radius: 10px;
+    box-shadow: 5px 10px;
+}
+
+header a:hover {
+    text-decoration: none;
+}
+
+header h1, footer > h1 {
+    font-family: 'Dancing Script', cursive;
+    font-weight: bold;
+    color: red;
+}
+
+footer {
+    text-align: right;
+}
+
+.spHeading {
+    padding-top: 60px;
+    padding-left: 18px;
+    font-family: 'Sedgwick Ave Display', cursive;
+}
+
+.button {
+    background-color: #4CAF50; /* Green */
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+}
+
+wired-button {
+    background-color: white;
+    padding: 15px;
+    box-shadow: 0 6px 8px 0 rgba(0,0,0,0.1), 0 7px 20px 0 rgba(0,0,0,0.1);
+}
+
+wired-button:hover {
+    box-shadow: 0 12px 16px 0 rgba(0,0,0,0.24), 0 17px 50px 0 rgba(0,0,0,0.19);
+}
+
+.paper {
+
+    border-style: solid;
+    border-radius: 10px;
+    box-shadow: 5px 10px;
+
+    padding: 6px 15px 4px 42px;
+    position: relative;
+    color: #444;
+    line-height: 20px;
+
+/* lines in the notebook paper */
+    background: -webkit-gradient(linear, 0 0, 0 100%, from(#d9eaf3), color-stop(18%, #fff)) 0 4px;
+    background: -webkit-linear-gradient(top, #d9eaf3 0%, #fff 18%) 0 4px;
+    background: -moz-linear-gradient(top, #d9eaf3 0%, #fff 18%) 0 4px;
+    background: -ms-linear-gradient(top, #d9eaf3 0%, #fff 18%) 0 4px;
+    background: -o-linear-gradient(top, #d9eaf3 0%, #fff 18%) 0 4px;
+    background: linear-gradient(top, #d9eaf3 0%, #fff 18%) 0 4px;
+
+    -webkit-background-size: 100% 20px;
+    -moz-background-size: 100% 20px;
+    -ms-background-size: 100% 20px;
+    -o-background-size: 100% 20px;
+    background-size: 100% 20px;
+
+    min-height: 800px;
+}
+
+.blog {
+    padding-right: 60px;
+    padding-bottom: 40px;
+    font-family: 'Lato', sans-serif;
+}
+
+.xs .paper {
+    min-width: 0px;
+}
+
+.sm .paper, .md .paper {
+    min-width: 80%;
+    max-width: 90%;
+}
+
+.lg .paper, .xl .paper {
+    min-width: 800px;
+}
+
+.paper::before {
+    content: '';
+    position: absolute;
+    width: 6px;
+    top: 0;
+    left: 30px;
+    bottom: 0;
+    border: 1px solid;
+    border-color: transparent #efe4e4;
+}
+
+textarea {
+    display: block;
+    width: 94%;
+    margin: 0 auto;
+    padding: 3.8% 3%;
+    border: none;
+    outline: none;
+    height: 94%;
+    background: transparent;
+    line-height: 20px;
+}
+
+.head {
+	background-color: #FFF;
+	min-height: 124px;
+}
