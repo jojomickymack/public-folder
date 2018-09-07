@@ -1,0 +1,27 @@
+{
+  "name": "my-wired-thing",
+  "authors": [
+    "jojo <jojomickymack@gmail.com>"
+  ],
+  "description": "",
+  "main": "",
+  "license": "MIT",
+  "homepage": "",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components"
+  ],
+  "dependencies": {
+    "wired-elements": "^0.2.3",
+    "iron-demo-helpers": "^2.0.0",
+    "responsive-bootstrap-toolkit": "responsive-toolkit#^2.6.3",
+    "bootstrap": "^4.0.0",
+    "marked-element": "^2.3.3",
+    "markdown-element": "^0.2.1"
+  },
+  "resolutions": {
+    "polymer": "1.9 - 2",
+    "webcomponentsjs": "^v1.0.19"
+  }
+}
