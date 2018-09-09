@@ -72,7 +72,7 @@ I didn't show any code here because ECS is really just an idea, and the Ashley s
 
 I added a working example of a platformer using a tiled map to my github account.
 
-(https://github.com/jojomickymack/libgdx_ashley001)[https://github.com/jojomickymack/libgdx_ashley001]
+[https://github.com/jojomickymack/libgdx_ashley001](https://github.com/jojomickymack/libgdx_ashley001)
 
 
 
