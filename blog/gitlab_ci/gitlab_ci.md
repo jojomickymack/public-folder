@@ -2,7 +2,7 @@
 
 To the layman, github and gitlab are difficult to tell apart. I've been using github for years and when first logging into my company's gitlab instance I could only describe it as being "just like github" to my coworkers. Ok, if it's just like github, than what's the point?
 
-After a lot of trial and error finding out for myself what sets gitlab apart from github, I wanted to document what I learned. In this article, I'm going over the '.gitlab-ci.yml' file, gitlab runners, pages, and the docker image registry.  
+After a lot of trial and error finding out for myself what sets gitlab apart from github, I wanted to document what I learned. In this article, I'm going over the '.gitlab-ci.yml' file, gitlab runners, pages, the docker image registry, and finally, how to host gitlab on your local machine.  
 
 ## "Auto Dev-Ops"
 
