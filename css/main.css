@@ -42,6 +42,15 @@ footer {
     font-family: 'Sedgwick Ave Display', cursive;
 }
 
+.spHeading > q {
+    font-size: 2.5em;
+}
+
+.spHeading > p {
+    padding-left: 32px;
+    font-size: 1.5em;
+}
+
 .button {
     background-color: #4CAF50; /* Green */
     border: none;
