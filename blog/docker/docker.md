@@ -34,3 +34,13 @@ If you have a similar issue where docker 'can't connect', you need to set these 
 You should then be able to run 'docker info' and see some meaningful data - that's if your virtualbox image is running.
 
 Docker toolbox comes with an interesting bootstrapping tool called 'kitematic', where you can select and create docker images visually.
+
+## Docker On Linux
+
+Installing docker on ubuntu is dirt simple, you just type 'sudo apt-get install docker.io' and you're ready to go. There's some stuff you should do to make it so you don't have to run docker as sudo.
+
+    sudo groupadd docker
+    sudo usermod -aG docker $USER
+    
+After running those commands and rebooting, you can run 'docker info' and see some meaningful output.
+

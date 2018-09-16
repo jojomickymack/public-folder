@@ -203,10 +203,20 @@ When a merge request is submitted, the pipeline is run on the master branch _and
 
 It's a really nice way to prominently show what needs to be fixed before a branch can be merged into the master branch.
 
+## Bonus - Install Gitlab On Your Local Machine
+
+I was intrigued by the prospect that gitlab [can be installed on a raspberry pi](https://about.gitlab.com/installation/#raspberry-pi-2), so I gave it a try. It works - but the performance is abysmal and I decided to instead install it on a dedicated ubuntu machine.
+
+Basically, you run the commands given in the instructions to add the gitlab community edition repository and install it, then go to localhost in your browser and log in as the administrator and you're set. New users apparently can go directly from the registration page to being logged in and create repos right away.
+
+Not only that, but if you install docker on the host machine and install a gitlab runner using the 'docker executor', you can pull images and run your '.gitlab-ci.yml' scripts in a docker container.
+
+You could easily host this on a real website by registering 'gitlab.yourdomain.com' as a CNAME on your website hosting settings, or put it on a local intranet. Or you could just kind of do whatever you want hosting your own projects at home - it's neat that all the ci tools are included out of the box.
+
 ## Summary
 
 So that's what I learned about Gitlab as I was tooling around with it. The platform is a great place to learn a simple way be introduced to all of the tenants of modern 'dev-ops' culture and allow yourself to be indoctrinated into it.
 
 Gitlab must have had to strive to keep things simple, and the way the pipelines, the gitlab runners, and the docker registry all fits together is really appealing.
 
-Most other development pipelines resemble the things I've gone over here, but they tend to be _really_ complicated. If gitlab has achieved one thing here, it's bringing dev-ops to a new audience that will be able to take it for granted without a lot of work. That's really admirable!
+Most other development pipelines resemble the things I've gone over here, but they tend to be _really_ complicated. If gitlab has achieved one thing here, it's bringing dev-ops to a new audience that don't have time to set one of the other options up.
