@@ -54,20 +54,20 @@ Now you see the pipeline failed, and within that two jobs listed - the first one
 
 Now let's try 3 jobs, each with a different stage. Any value for a 'stage' directive that isn't 'build', 'test', or 'deploy' is invalid.
 
-        my job 1:
-            stage: build
-            script:
-                 - echo "this is my script"
+    my job 1:
+        stage: build
+        script:
+             - echo "this is my script"
 
-        my job 2:
-            stage: test
-            script:
-                 - I don't like shots, they're owie
+    my job 2:
+        stage: test
+        script:
+             - I don't like shots, they're owie
 
-        my job 3:
-            stage: deploy
-            script:
-                 - echo "back to being good"
+    my job 3:
+        stage: deploy
+        script:
+             - echo "back to being good"
 
 Now in your pipeline view you get to see 3 stages - there's one job in each stage and the test stage failed - the deploy stage wasn't even run. If any stage fails, it'll skip the rest.
 
@@ -86,7 +86,7 @@ You basically put it somewhere it can remain (not your downloads folder) and cha
     ./gitlab-runner install
     ./gitlab-runner register
     
-You'll be prompted with some questions - it asks for the gitlab domain (gitlab.yourdomain.com if you've installed gitlab yourself), and a token code from your project. It tells you what these are supposed to be if you click on 'settings' -> 'CI/CD' -> 'runners' in your project and look under 'set up a specific runner'. The token for your project is also shown under 'general pipeline' under 'runner token'.
+You'll be prompted with some questions - it asks for the gitlab domain (gitlab.yourdomain.com or the ipaddress of your machine if you've installed gitlab yourself), and a token code from your project. It tells you what these are supposed to be if you click on 'settings' -> 'CI/CD' -> 'runners' in your project and look under 'set up a specific runner'. The token for your project is also shown under 'general pipeline' under 'runner token'.
 
 Put nothing in for tags and enter 'shell' for the executor setting. Whatever you put in here gets saved to the 'config.toml' and running the register command again will overwrite it.
 
@@ -102,8 +102,8 @@ Warning - tags in git have a certain meaning - every commit in a repo's history 
 
 If you were running a lot of projects and had different runners on different systems for them, you might want to designate types of projects and specify runners that only run their pipelines. That's what tags are for. Certain jobs can be given tags - if it's not given as a list of strings as shown below, there will be an error parsing the yml file.
 
-        my job 1:
-            tags: ['ruby', 'test']
+    my job 1:
+        tags: ['ruby', 'test']
 
 Once runners are registered to your project, they're shown in the settings under 'CI/CD' -> 'runners', and their tags are shown in blue.
 
@@ -113,14 +113,16 @@ If a runner has a tag that doesn't match what's in your job's 'tags array', you'
 
 Many people set up virtual environments where they set up their runners - the executor is associated with the type of environment. Docker and kubernetes are popular choices, so there are special executors specifically for those. If you're installing on a physical windows or linux machine, choosing 'shell' will work.
 
+If you have docker installed, choose the 'docker' executor. You'll be asked for a default image that gets pulled and when the runner runs your pipeline it will do so in that docker container.
+
 ## Having Your Runner Run Your Pipeline
 
 Now that you've registered your runner, when accessing 'settings'->'CI/CD'->'runners', it'll be shown under 'runners activated for this project'. Let's change our job and push another change to the repo to activate it.
 
-        my job 1:
-            stage: build
-            script:
-                 - echo %computername%
+    my job 1:
+        stage: build
+        script:
+             - echo %computername%
                  
 Click on 'disable shared runners' in the 'runners' settings to make it so only your runner is eligible to run your pipeline. 
 
@@ -212,6 +214,10 @@ Basically, you run the commands given in the instructions to add the gitlab comm
 Not only that, but if you install docker on the host machine and install a gitlab runner using the 'docker executor', you can pull images and run your '.gitlab-ci.yml' scripts in a docker container.
 
 You could easily host this on a real website by registering 'gitlab.yourdomain.com' as a CNAME on your website hosting settings, or put it on a local intranet. Or you could just kind of do whatever you want hosting your own projects at home - it's neat that all the ci tools are included out of the box.
+
+note: after some trial and error, I found that you can easily get gitlab, gitlab-runners, and docker to all work if you replace the 'gitlab.yourdomain.com' argument in the install command with the ipaddress of the machine on the local network (not localhost or 127.0.0.1).
+
+That value is stored in the gitlab config file, which is '/etc/gitlab/gitlab.rb'. If you change it after installing, run 'sudo gitlab-ctl reconfigure'. When registering your gitlab runner, make sure to give it the same ipaddress when it asks for the gitlab domain.
 
 ## Summary
 
