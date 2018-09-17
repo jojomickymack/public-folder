@@ -115,16 +115,16 @@ Many people set up virtual environments where they set up their runners - the ex
 
 If you have docker installed, choose the 'docker' executor. You'll be asked for a default image that gets pulled and when the runner runs your pipeline it will do so in that docker container.
 
-## Having Your Runner Run Your Pipeline
+## Having Your Runner Run Your Pipeline On Your Local Machine
 
-Now that you've registered your runner, when accessing 'settings'->'CI/CD'->'runners', it'll be shown under 'runners activated for this project'. Let's change our job and push another change to the repo to activate it.
+Now that you've downloaded and registered your runner on your machine, when accessing 'settings' -> 'CI/CD' -> 'runners', it'll be shown under 'runners activated for this project'. Click on 'disable shared runners' in the 'runners' settings to make it so only your runner is eligible to run your pipeline.
+
+Let's change our job and push another change to the repo to activate it. If you want to run the pipeline without actually pushing a change, that can be done from the pipeline's view and clicking 'new pipeline'.
 
     my job 1:
         stage: build
         script:
              - echo %computername%
-                 
-Click on 'disable shared runners' in the 'runners' settings to make it so only your runner is eligible to run your pipeline. 
 
 When running the pipeline now, you should see your own computer's name shown in the terminal output. That variable only works in windows, try hostname on linux.
 
@@ -156,6 +156,30 @@ Basically, the default docker container that gets pulled if you don't specifiy o
 That's all that's necessary to assemble all of the generated html into the 'public' directory and upload it to gitlab so it can be hosted there. This process will be repeated every time anything is pushed.
 
 Since this was an experiment and I didn't care about branching, I only planned on pushing to master for this - typically there would be a line that says 'only: master' to only upload the html if the pipeline is being run on the master branch.
+
+## I'm Not Hosting A Website On Gitlab, What Else Are Pages Good For? 
+
+The 'pages' feature can be used in a non-website project if there are any 'artifacts' generated from the build process that you want easy access to, like test results or other build status reports.
+
+If you're using a tool that generates html reports, putting them into the 'public' folder will allow it to be shown on the project's 'pages' site. For an example of how gitlabs is using this to display their code coverage report, [take a look at this support documentation](https://about.gitlab.com/2016/11/03/publish-code-coverage-report-with-gitlab-pages). You can see in their build script that rspec builds into the coverage directory, and then the 'pages' job makes the coverage directory into the 'public' directory and it's uploaded to gitlab.
+
+    rspec:
+        stage: test
+        script:
+            - bundle install
+            - rspec
+        artifacts:
+            paths:
+                - coverage/
+    
+    pages:
+        dependencies:
+            - rspec
+        script:
+            - mv coverage/ public/
+        artifacts:
+            paths:
+                - public
 
 ## Docker Registry
 
