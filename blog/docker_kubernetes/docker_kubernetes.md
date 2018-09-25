@@ -146,6 +146,12 @@ If you go back to the minikube dashboard now and click on the 'gitlab-managed-ap
 
 In gitlab, to go the 'ci/cd' settings and verify that the new runner has been added there.
 
+You can also type 'kubectl get pods --all-namespaces' again and you should see that under the 'gitlab-managed-apps' namespace, 'tiller' and 'gitlab-runner' are now online.
+
+## Running A Pipeline On Kubernetes
+
+Note: If you screw something up and need to start fresh, type 'minikuke delete' and 'minikube start' and you'll have a clean slate.
+
 If you've managed to get that far, you can now create a hello world '.gitlab-ci.yml' file like the one below and it will run in a pipeline in your kubernetes cluster. Note that it's using the 'alpine' docker image, which is just really minimal and is less than 10mb.
 
     image: alpine
