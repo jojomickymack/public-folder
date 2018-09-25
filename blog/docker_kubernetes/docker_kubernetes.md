@@ -80,7 +80,15 @@ Note - kubectl likes to run on port 8080, which gitlab is occupying. If you run 
     
 Run 'sudo gitlabctl reconfigure' and 'gitlabctl restart' to get the settings registered and now when checking the kubectl version the server's port should be clear.
 
-With both 'kubectl' and 'minikube' installed, type 'kubectl get nodes' and you should see 'minikube ready'.
+With both 'kubectl' and 'minikube' installed, type 'kubectl get nodes' and you should see 'minikube ready'. Type 'minikube status' and you'll see that kubectl is connected to it.
+
+For an overview of what's going on in your cluster, use the command below.
+
+    kubectl get pods --all-namespaces
+
+If you started minikube only minutes ago, you'll see that some 'pods' still have a status of 'ContainerCreating', including minikube's dashboard.
+
+Once the dashboard is available you can type 'minikube dashboard' and it will show you a control panel in the default browser.
 
 ## Kubenetes Concepts
 
@@ -101,31 +109,42 @@ This part of the write-up is a work in progress. It will go over what these comp
 
 ## Connecting Your Kubernetes Instance To Gitlab
 
-Connect to your gitlab instance and create a new project - you'll see a button that says 'add a kubernetes cluster' which you can click on, or just click on the 'operations' menu and select 'kubernetes'. There's a green button inviting you to 'add a kubernetes cluster'.
+We are going to use 'kubectl' to create a special namespace for gitlab and give it the permissions necessary to install software to the cluster, including a gitlab-runner.
+
+Create a json file like the one below.
+
+    {
+        "kind": "Namespace",
+        "apiVersion": "v1",
+        "metadata": {
+            "name": "gitlab-managed-apps",
+            "labels": {
+                "name": "gitlab"
+            }
+        }
+    }
+
+Now, this is kind of a hack, but after connecting to gitlab, in its current state, there will be a permissions error when you attempt to install software. This has been raised in some [gitlab forums](https://gitlab.com/gitlab-org/gitlab-ce/issues/46969), and that's where I found the command below which is a workaround for the issue.
+
+    kubectl create clusterrolebinding --user system:serviceaccount:gitlab-managed-apps:default default-gitlab-sa-admin --clusterrole cluster-admin
+
+In any project that doesn't have ci set up already, you'll see a button that says 'add a kubernetes cluster' which you can click on, or just click on the 'operations' menu and select 'kubernetes'. There's a green button inviting you to 'add a kubernetes cluster'.
 
 There are two options here, the first one being to 'create a cluster on GKE'. That stands for Google Kubernetes Engine, and it's one of the many services on Google Cloud. Since kubernetes is on our machine where gitlab is hosted, we want the other option, 'add existing cluster'.
 
-## Using The Default User For A Quickstart
+Now from the minikube dashboard, select the 'gitlab-managed-apps' namespace and select 'secrets' from the menu on the left. You will need to copy the 'ca-cert' and 'token' from the dashboard into your gitlab kubernetes connection config. 
 
-Now in reality, we should create a namespace just for gitlab and give gitlab the token and ca certificate for that. Since this is kind of just an experiment to get up and running, we want to just make it so gitlab can just use kubernetes any way it wants, so we're going to use the default user and disable some of the security so it can do what it needs to.
-
-It's smart to actually do this on the same machine you can view the minikube dashboard from, because you'll need to enter some information that's shown there.
-
-In the minikube dashboard, make sure the 'default' namespace is selected and find the 'secrets' page. Here you can view the 'ca certificate' and token, which can be entered here. Put the ipaddress and port which you saw when running 'kubectl cluster-info' earlier into the 'api url' field.
-
-The 'project namespace' can be left blank - what it's going to try to do is create a new one called 'gitlab-managed-apps'. Click 'save' and move to the next page.
-
-If we were to stop here, our builds wouldn't run because there's no runner installed, and when we try to interact with the cluster we get a permissions error. Let's do a workaround to create a permissive cluster role that will allow for gitlab to do these things.
-
-    kubectl create clusterrolebinding permissive-binding --clusterrole=cluster-admin --user=admin --user=kubelet --group=system:serviceaccounts
-    
-Now we can move to the next step.
+The gitlab kubernetes connection also requires namespace, which is gitlab-managed-apps, and the api url, which is what is displayed when you run 'kubectl cluster-info'.
 
 ## Install Helm And Install Gitlab Runner
 
-In the kubernetes settings, we need to now use our connection to allow for gitlab to install software into our cluster. ['Helm'](https://helm.sh) is a package manager for Kubernetes, which I know almost nothing about, but it's how some of the other installation options, such as the gitlab-runner we need, get injected into our kubernetes cluster.
+In the kubernetes settings, we need to now use our connection to allow for gitlab to install software into our cluster. ['Helm'](https://helm.sh) is a package manager for Kubernetes.
 
-If you are actually connected to your cluster, and appropriate permissions are allowed using it, you should be able to successfully install 'helm'. Next, install 'gitlab-runner'.
+If you are actually connected to your cluster, and appropriate permissions are allowed using it, you should be able to successfully install 'helm'. Next, install 'gitlab-runner'. After having done that successfully, if you go to the 'ci/cd' settings and click on 'runners', you should see a new runner with the tags 'kubernetes' and 'cluster' on it.
+
+If you go back to the minikube dashboard now and click on the 'gitlab-managed-apps' namespace, the events displayed there show the successful installation of helm and the gitlab runner, also note that if you select 'config maps' from the menu, there are configurations listed there for each of these.
+
+In gitlab, to go the 'ci/cd' settings and verify that the new runner has been added there.
 
 If you've managed to get that far, you can now create a hello world '.gitlab-ci.yml' file like the one below and it will run in a pipeline in your kubernetes cluster. Note that it's using the 'alpine' docker image, which is just really minimal and is less than 10mb.
 
