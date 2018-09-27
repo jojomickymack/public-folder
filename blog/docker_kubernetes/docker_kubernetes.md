@@ -166,8 +166,12 @@ When you click on the 'ci/cd' menu, you should see that the job was run and that
     Using Kubernetes namespace: gitlab-managed-apps
     Using Kubernetes executor with image alpine ...
     
+As you're running this, if you run 'minikube get pods --all-namespaces' again, you'll see helm, gitlab-runner, and a pod representing your build. If you pull up the minikube dashboard, you can select the 'gitlab-managed-apps' namespace, select 'pods', and select your build to see all of the environment variables associated with the job, and view the events and logs associated with it.
+    
 ## Summary
 
-Modern dev-ops is partly about selecting the right tooling to minimize the work that goes into setting up different environments and automating deployment. It's true that in the past, a company would expect to take on specialists to achieve what kubernetes is doing automatically, and by using containers it enhances how much confidence you can have in how an app will function in various environments.
+These are my notes on getting kubernetes set up on the same machine that has gitlab installed - now I can connect any project to the same instance and run all of the builds in it. Not only does this make obtaining a virtual containerized environment trivial, it makes it so I could potentially switch over to using google cloud or any other kubernetes provider and horizontally scale my app's throughput without any changes.
 
-The dev-ops features gitlabs are kind of catering towards tools like kubernetes and docker, and by working with them on a small scale you make the transition to being scaled up a lot smoother. 
+The dev-ops features gitlabs are kind of catering towards tools like kubernetes and docker, and by working with them on a small scale you make the transition to being scaled up a lot smoother.
+
+Gitlab is abstracting away a lot of the concepts and commands you'd need to know about in order to orchestrate your deployments, since it's all handled in the '.gitlab-ci.yml' script - it's a great way to familiarize yourself with modern dev-ops without having to study too much.
