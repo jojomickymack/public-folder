@@ -1,12 +1,12 @@
 # Docker And Kubernetes With Gitlab
 
-Gitlab doesn't require kubernetes or docker - but it does gently encourage the use of them as components to your build by reminding you that they exist with specialized settings and links to support documentation. Like the 'set up ci/cd' button that you'll see if you don't yet have a '.gitlab-ci.yml' file, there's another one for integrating with a kubernetes cluster. For someone just experimenting, it's definitely not required, but is quite interesting if you decide to take the plunge and set it up.
+Gitlab doesn't impose a lot of rules on how or if you take advantage of its features. Basically, if you add a '.gitlab-ci.yml' file to your repo and start using gitlab runners and stages, you might want to find out what else you can plug into gitlab. If you're like me, you'll see that there's integration with kubernetes and you'll want to see what it does.
 
-It's another component to the 'modern dev-ops' landscape that gitlab encouraging - which can be kind of mind bending!
+For me, kubernetes represents some new concepts which were hard to learn, as well as some new approaches to dev-ops that I recognize a lot of value in. 
 
 ## What Is Kubernetes And Why Is It Needed?
 
-Kubernetes is an open source 'container orchestration' tool that was cultivated by google. Using containers - which docker can be used to create - it provides an api for controlling scenarios where you have distributed containers on multiple computers in a cluster. It's a system administration tool, but it's also useful for automating deployments in a 'rolling release' style. 
+Kubernetes is an open source 'container orchestration' tool that was cultivated by google. Using docker containers, it provides an api for controlling scenarios where you have distributed containers on multiple computers in a cluster. It's a system administration tool, but it's also useful for automating deployments in a 'rolling release' style. 
 
 As you learn more about it, it becomes clear why it's being promoted as the backbone for the dev-ops side of gitlab. Using kubernetes makes it easy to dynamically increase your server's capabilities by invoking more instances of your app running in containers. The strategy is called 'horizontal scaling' and typically requires a team of specialists.
 
@@ -22,9 +22,13 @@ Docker is exciting for a lot of reasons, and one of the reasons it's huge right 
 
 The concept that someone who hasn't used docker before will come to understand is 'containers'. You might be trying to figure out how a container is different from a full on vm - functionally a container is a linux environment with the intricacies of the operating system abstracted away. Your app basically boils down to source-code, a configured storage mounting point, and its dependencies. It's like getting a brand new instance of the image every time it's instantiated, and a script, called a 'dockerfile' which essentially tells docker how to get your dependencies and bootstrap your app.
 
-Docker gives you some interesting capabilities when containers work together that with a vm, you'd probably end up reconciling by just having various apps run on the same system. By isolating different applications in different containers though, you're potentially limiting their environment from including anything unnecessary, which saves resources, and you're decoupling all of the different parts.
+Docker gives you some interesting ways for containers to interact with each other by attaching 'services'. Isolating applications in containers can result in stripped down environments which are decoupled from one another. You can clearly see how the trend of microservices - small isolated apps that do one thing only - have become more common because of docker's availability. 
 
-The theme is comparable to the microsystem design strategy which favors managing things in smaller parts and steer away from monolithic applications that do everything.
+The best thing about docker is how smoothly adoption into someone's workflow can be. 
+
+Docker is just like git in a lot of ways - you can sign up for a free account on 'docker hub', create a repository, and then immediately get to work building your application with a simple 'Dockerfile', then push an update to the repo each time you make changes to your sourcecode.
+
+The strategy of coupling docker with your version control system and pulling the docker image into your containers makes forming a pipeline a little smoother. Automating all the activities for reproducing the docker image in different environments is simplified.
 
 ## Docker On Windows
 
@@ -56,11 +60,52 @@ Installing docker on ubuntu is dirt simple, you just type 'sudo apt-get install 
     
 After running those commands and rebooting, you can run 'docker info' and see some meaningful output.
 
+## The Dockerfile
+
+Below is an example of a 'Dockerfile' which uses 'alpine', a lightweight debian images, installs nodejs, and copies the source code for a nodejs app, including the 'package.json' file which has everything necessary to download dependencies, run tests, and start the app.
+
+    FROM alpine
+
+    EXPOSE 3000
+    RUN apk add nodejs nodejs-npm
+    WORKDIR /src
+    COPY . .
+
+The idea here is that you don't actually build the app before creating the image, you do that in your gitlab build job - sure, that takes some time, but it keeps the image really tiny and it's automated anyway.
+
 ## Using Docker As Your Gitlab Executor
 
 If you're using gitlab.com and create a new project and include a '.gitlab-ci.yml' file and run a pipeline, it will be run by a gitlab runner in the cloud somewhere using the docker executor to pull the default image and do whatever your yml file says to. Setting up a gitlab runner to _not_ use docker is therefore harder to do if you're on gitlab.com.
 
 If you actually install gitlab community edition on your own linux system however, the opposite is true. You must download and install a gitlab-runner on the host machine and set it to automatically start on bootup. If you install docker on the same machine, you can select the docker executor and now the default build experience is essentially the same as it is on gitlab.com.
+
+There isn't a standard way of doing this, but after some trial and error, I settled on having a build task using a docker executor specifically for checking out the sourcecode and doing a docker build and pushing it to dockerhub so it's available for the rest of the jobs in the pipeline. That part of the '.gitlab-ci.yml' looks like this. Obviously, I shouldn't have my password in there.
+
+When you register the gitlab runner, choose 'docker' as the executor and change 'priviledged' to 'true' in the 'config.toml' file.
+
+    variables:
+        USER: 'myusername'
+        REPO: 'reponame'
+        PASSWORD: 'mypassword'
+        IMAGE: $USER/$REPO
+  
+    build docker:
+        tags: ['docker']
+        stage: docker
+        services:
+            - docker:dind
+        script:
+            - docker version
+            - docker login -u $USER -p $PASSWORD
+            - docker build -t "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" .
+            - docker tag "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" $IMAGE
+            - docker push $IMAGE
+
+What's kind of crazy is that you can actually pull a docker image that has docker _inside_ of it, and do the build there.
+
+At this point, you could stop reading and you could run a docker-based pipeline using gitlab and deploy by executing a 'docker pull' using a gitlab-runner on the production server. 
+
+What kubernetes does in addition to this is manage lots of containers.
 
 ## Moving On To Kubernetes
 
@@ -111,7 +156,7 @@ This part of the write-up is a work in progress. It will go over what these comp
 
 We are going to use 'kubectl' to create a special namespace for gitlab and give it the permissions necessary to install software to the cluster, including a gitlab-runner.
 
-Create a json file like the one below.
+Create a json file like the one below - if you wish to have a 'staging' and 'production' namespace, just copy the file and change the name fields.
 
     {
         "kind": "Namespace",
@@ -123,10 +168,8 @@ Create a json file like the one below.
             }
         }
     }
-
-Now, this is kind of a hack, but after connecting to gitlab, in its current state, there will be a permissions error when you attempt to install software. This has been raised in some [gitlab forums](https://gitlab.com/gitlab-org/gitlab-ce/issues/46969), and that's where I found the command below which is a workaround for the issue.
-
-    kubectl create clusterrolebinding --user system:serviceaccount:gitlab-managed-apps:default default-gitlab-sa-admin --clusterrole cluster-admin
+    
+It's common to give kubernetes instructions by loading json like this - the command you need to load it is 'kubectl create -f gitlab.json'.
 
 In any project that doesn't have ci set up already, you'll see a button that says 'add a kubernetes cluster' which you can click on, or just click on the 'operations' menu and select 'kubernetes'. There's a green button inviting you to 'add a kubernetes cluster'.
 
@@ -136,9 +179,15 @@ Now from the minikube dashboard, select the 'gitlab-managed-apps' namespace and 
 
 The gitlab kubernetes connection also requires namespace, which is gitlab-managed-apps, and the api url, which is what is displayed when you run 'kubectl cluster-info'.
 
-## Install Helm And Install Gitlab Runner
+## Optional - Install Helm And Install Gitlab Runner
 
-In the kubernetes settings, we need to now use our connection to allow for gitlab to install software into our cluster. ['Helm'](https://helm.sh) is a package manager for Kubernetes.
+Note - This is not the only way to use gitlab runners to interact with kubernetes - I decided to just use a 'shell executor' to run 'kubectl' commands _outside_ of the cluster. I'm kind of unsure why you'd want to have builds and tests run inside of a cluster, but that's what happens when you follow the instructions below.
+
+In the kubernetes settings, you can allow for gitlab to install software into our cluster. ['Helm'](https://helm.sh) is a package manager for Kubernetes. You will need to elevate the permissions for the 'gitlab-managed-apps' namespace in order for it to work.
+
+Now, this is kind of a hack - others noted in the [gitlab forums](https://gitlab.com/gitlab-org/gitlab-ce/issues/46969) that you probably shouldn't have to do this - but the command below will allow for you to install.
+
+    kubectl create clusterrolebinding --user system:serviceaccount:gitlab-managed-apps:default default-gitlab-sa-admin --clusterrole cluster-admin
 
 If you are actually connected to your cluster, and appropriate permissions are allowed using it, you should be able to successfully install 'helm'. Next, install 'gitlab-runner'. After having done that successfully, if you go to the 'ci/cd' settings and click on 'runners', you should see a new runner with the tags 'kubernetes' and 'cluster' on it.
 
@@ -167,7 +216,23 @@ When you click on the 'ci/cd' menu, you should see that the job was run and that
     Using Kubernetes executor with image alpine ...
     
 As you're running this, if you run 'minikube get pods --all-namespaces' again, you'll see helm, gitlab-runner, and a pod representing your build. If you pull up the minikube dashboard, you can select the 'gitlab-managed-apps' namespace, select 'pods', and select your build to see all of the environment variables associated with the job, and view the events and logs associated with it.
+
+## Pulling It All Together - A Complete Pipeline
+
+There is no _one_ way to use gitlab, and the same is true for kubernetes _or docker_ for that matter. I've seen a lot of information describing pipelines that are totally different from what I settled on.
+
+The main thing that needs to happen to deploy an updated image to kubernetes is this.
+
+    kubectl --namespace=production set image deployment/nodejs nodejs=jojomickymack/thng03:latest
     
+What that does in kubernetes is continues to run the old pod as the new one comes online, and once the new pod's status is 'ready', the old one is terminated. If there were multiple pods in the 'staging' namespace, they'd each get replaced in the same way.
+
+You can't do kubectl commands from inside of the gitlab-runner pod, and it's unclear to me why you'd want for builds and tests to happen inside of your cluster anyway, so I just used a 'shell executor' to execute these commands for staging and production namespaces.
+
+The whole thing works because the first step in the pipeline is for rebuilding the docker image and pushing it to dockerhub. The 'build' and 'test' jobs pull that updated image down and run 'npm install' and 'npm start test' scripts respectively.
+
+Since it's long, I'll add the entire '.gitlab-ci.yml' file further down.
+
 ## Summary
 
 These are my notes on getting kubernetes set up on the same machine that has gitlab installed - now I can connect any project to the same instance and run all of the builds in it. Not only does this make obtaining a virtual containerized environment trivial, it makes it so I could potentially switch over to using google cloud or any other kubernetes provider and horizontally scale my app's throughput without any changes.
@@ -175,3 +240,77 @@ These are my notes on getting kubernetes set up on the same machine that has git
 The dev-ops features gitlabs are kind of catering towards tools like kubernetes and docker, and by working with them on a small scale you make the transition to being scaled up a lot smoother.
 
 Gitlab is abstracting away a lot of the concepts and commands you'd need to know about in order to orchestrate your deployments, since it's all handled in the '.gitlab-ci.yml' script - it's a great way to familiarize yourself with modern dev-ops without having to study too much.
+
+## .gitlab-ci.yml
+
+    variables:
+        USER: 'username'
+        REPO: 'reponame'
+        PASSWORD: 'password'
+        IMAGE: $USER/$REPO
+
+    stages:
+        - docker
+        - build
+        - deploy to stage
+        - test
+        - deploy to prod
+
+    build docker:
+        tags: ['docker']
+        stage: docker
+        services:
+            - docker:dind
+        script:
+            - docker version
+            - docker login -u $USER -p $PASSWORD
+            - docker build -t "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" .
+            - docker tag "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" $IMAGE
+            - docker push $IMAGE
+
+    build:
+        tags: ['docker']
+        image: $IMAGE
+        stage: build
+        script:
+            - npm install
+        artifacts:
+            when: always
+            expire_in: 5 minutes
+            paths:
+                - node_modules/
+
+    deploy to stage:
+        tags: ['kubectl']
+        stage: deploy to stage
+        script:
+            - echo 'I deploy things to stage'
+            - kubectl --namespace=staging set image deployment/nodejs nodejs=jojomickymack/thng03:latest
+    # The first time you deploy, you must swap the command above for the one below (the one above is for updating the image on a running pod, the one below is for first time deployment)
+    #        - kubectl --namespace=staging run nodejs --image=jojomickymack/thng03
+        environment:
+            name: staging
+
+    test:
+        tags: ['docker']
+        image: $IMAGE
+        stage: test
+        dependencies:
+            - build
+        script:
+            - npm run test
+        environment:
+            name: staging
+
+    deploy to prod:
+        tags: ['kubectl']
+        stage: deploy to prod
+        when: manual
+        dependencies: []
+        script:
+            - echo 'I deploy things to production'
+            - kubectl --namespace=production set image deployment/nodejs nodejs=jojomickymack/thng03:latest
+    # The first time you deploy, you must swap the command above for the one below (the one above is for updating the image on a running pod, the one below is for first time deployment)        
+    #        - kubectl --namespace=production run nodejs --image=jojomickymack/thng03
+        environment:
+            name: production
