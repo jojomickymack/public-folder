@@ -73,6 +73,26 @@ Below is an example of a 'Dockerfile' which uses 'alpine', a lightweight debian 
 
 The idea here is that you don't actually build the app before creating the image, you do that in your gitlab build job - sure, that takes some time, but it keeps the image really tiny and it's automated anyway.
 
+I actually changed my thinking about this as I went - you want your container to have an image that's your _complete_ running application. When you are deploying a nodejs application, you need to access the node_modules directory. The dockerfile below builds the node_modules directory in a data directory and adds it to the path. The node_modules directory actually doesn't need to be in the project root directory - it just needs to be in the path.
+
+    FROM alpine
+    
+    EXPOSE 3000
+    
+    RUN apk add nodejs nodejs-npm
+    COPY package.json /data/
+    WORKDIR /data/
+    RUN npm install
+    ENV PATH /data/node_modules/.bin:$PATH
+    
+    COPY . /data/app/
+    WORKDIR /data/app/
+    
+    CMD ["npm", "install"]
+    CMD ["npm", "run", "start"]
+
+That Dockerfile will build and run a nodejs web application - if you build and push this docker image in your pipeline, you can pull it in a different job and use whatever is in the node_modules folder, like I do with mocha in my example at the end of this article.
+
 ## Using Docker As Your Gitlab Executor
 
 If you're using gitlab.com and create a new project and include a '.gitlab-ci.yml' file and run a pipeline, it will be run by a gitlab runner in the cloud somewhere using the docker executor to pull the default image and do whatever your yml file says to. Setting up a gitlab runner to _not_ use docker is therefore harder to do if you're on gitlab.com.
@@ -95,7 +115,6 @@ When you register the gitlab runner, choose 'docker' as the executor and change 
         services:
             - docker:dind
         script:
-            - docker version
             - docker login -u $USER -p $PASSWORD
             - docker build -t "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" .
             - docker tag "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" $IMAGE
@@ -103,13 +122,15 @@ When you register the gitlab runner, choose 'docker' as the executor and change 
 
 What's kind of crazy is that you can actually pull a docker image that has docker _inside_ of it, and do the build there.
 
+Note: In order to avoid exposing the password, I ended up using the  [official docker credential helper](https://github.com/docker/docker-credential-helpers). In order to use that, I ended up using a gitlab 'shell' executor so it could pick up the docker credentials which aren't available inside the container.
+
 At this point, you could stop reading and you could run a docker-based pipeline using gitlab and deploy by executing a 'docker pull' using a gitlab-runner on the production server. 
 
 What kubernetes does in addition to this is manage lots of containers.
 
 ## Moving On To Kubernetes
 
-On the same machine you're hosting gitlab and docker on, you can now install kubernetes. There's a variety of ways to set it up - some are definitely more 'cloud-centric' in that they're supposed to be for 'real' dev-ops, not just experimenting. They aren't free.
+On the same machine you're hosting gitlab and docker on, you can now install kubernetes. There's a variety of ways to set it up - some are definitely more 'cloud-centric' in that they're supposed to be for 'real' dev-ops, not just experimenting.
 
 Basically there's two components involved in a basic kubernetes setup - the kubectl tool, which is the administrative api, and the actual kubernetes instance, which the kubectl tool connects to via an http socket. If you want to have kubernetes running on your physical machine for development or tinkering with, 'minikube' is a good solution. 
 
@@ -130,6 +151,8 @@ With both 'kubectl' and 'minikube' installed, type 'kubectl get nodes' and you s
 For an overview of what's going on in your cluster, use the command below.
 
     kubectl get pods --all-namespaces
+    
+Note - if you want to execute commands in a namespace, the syntax is 'kubectl --namespace=mynamespace command' where the command is 'get pods', 'get deployments' or whatever.
 
 If you started minikube only minutes ago, you'll see that some 'pods' still have a status of 'ContainerCreating', including minikube's dashboard.
 
@@ -144,11 +167,33 @@ Now run 'minikube dashboard' - it will open up a control center in your default 
 This part of the write-up is a work in progress. It will go over what these components are.
 
 - cluster
+
+This is the entire collection of resources, everything listed below is contained inside the cluster.
+
+- pods
+
+A pod is a container with a running application in it. Pods have status - if they are offline, kubernetes will try to restart it. If a pod's image just runs and stops (like if it just runs a command and terminates), kubernetes will keep restarting it. Pods are meant to run continuously, or finish and delete themselves. A pod's lifecycle states can be defined so 'ready' can mean whatever you want.
+
 - namespaces
+
+Namespaces are used to sort related containers - it's practical to have a namespace called 'production' or other environments.
+
 - nodes
+
+Minikube is an example of a node - it's a kubernetes cluster that kubectl can dispatch commands to.
+
 - volumes
+
+Volumes is a mechanism for mounting shared storage that's used by containers.
+
 - roles
+
+It's possible to restrict permissions available to specific namespaces - further below there's an example where the 'gitlab-managaged-apps' namespace's roll is elevated to 'admin'. 
+
 - deployments
+
+In order to add pods to the cluster, there must be a deployment. Deployments can be defined in json or yaml with many different options for how kubernetes should handle it.
+
 - jobs
 - replica sets
 
@@ -223,9 +268,11 @@ There is no _one_ way to use gitlab, and the same is true for kubernetes _or doc
 
 The main thing that needs to happen to deploy an updated image to kubernetes is this.
 
-    kubectl --namespace=production set image deployment/nodejs nodejs=jojomickymack/thng03:latest
+    kubectl --namespace=production set image deployment/nodejs nodejs=username/reponame:mytag
     
 What that does in kubernetes is continues to run the old pod as the new one comes online, and once the new pod's status is 'ready', the old one is terminated. If there were multiple pods in the 'staging' namespace, they'd each get replaced in the same way.
+
+As for doing the initial deployment, there's a different command for that - it's a run command, which creates a deployment and creates the pod. I don't think deployment pipeline should be rolling out the initial deployment - it's pretty easy to do manually, but you could always just have a different script containing the 'kubectl run' commands needed for that scenario. 
 
 You can't do kubectl commands from inside of the gitlab-runner pod, and it's unclear to me why you'd want for builds and tests to happen inside of your cluster anyway, so I just used a 'shell executor' to execute these commands for staging and production namespaces.
 
@@ -239,69 +286,54 @@ These are my notes on getting kubernetes set up on the same machine that has git
 
 The dev-ops features gitlabs are kind of catering towards tools like kubernetes and docker, and by working with them on a small scale you make the transition to being scaled up a lot smoother.
 
-Gitlab is abstracting away a lot of the concepts and commands you'd need to know about in order to orchestrate your deployments, since it's all handled in the '.gitlab-ci.yml' script - it's a great way to familiarize yourself with modern dev-ops without having to study too much.
+
 
 ## .gitlab-ci.yml
 
     variables:
-        USER: 'username'
+        USER: 'dockerusername'
         REPO: 'reponame'
-        PASSWORD: 'password'
         IMAGE: $USER/$REPO
-
+        TAG: $CI_BUILD_REF_NAME-$CI_BUILD_REF
+        IMAGEID: '0.0.1'
+        DEPLOYMENT: 'nodejs'
+    
     stages:
         - docker
-        - build
         - deploy to stage
         - test
         - deploy to prod
-
+    
     build docker:
-        tags: ['docker']
+        tags: ['shell']
         stage: docker
-        services:
-            - docker:dind
         script:
-            - docker version
-            - docker login -u $USER -p $PASSWORD
-            - docker build -t "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" .
-            - docker tag "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" $IMAGE
-            - docker push $IMAGE
-
-    build:
-        tags: ['docker']
-        image: $IMAGE
-        stage: build
-        script:
-            - npm install
-        artifacts:
-            when: always
-            expire_in: 5 minutes
-            paths:
-                - node_modules/
-
+            - docker build -t $IMAGEID .
+            - docker tag $IMAGEID $IMAGE:$TAG
+            - docker push $IMAGE:$TAG
+    
     deploy to stage:
         tags: ['kubectl']
         stage: deploy to stage
         script:
             - echo 'I deploy things to stage'
-            - kubectl --namespace=staging set image deployment/nodejs nodejs=jojomickymack/thng03:latest
-    # The first time you deploy, you must swap the command above for the one below (the one above is for updating the image on a running pod, the one below is for first time deployment)
-    #        - kubectl --namespace=staging run nodejs --image=jojomickymack/thng03
+    # the 'run' command is for first time deployment, the 'set' is for all deployments following that
+    #        - kubectl --namespace=staging run $DEPLOYMENT --image=$USER/$REPO:$TAG
+            - kubectl --namespace=staging set image deployment/$DEPLOYMENT $DEPLOYMENT=$USER/$REPO:$TAG
         environment:
             name: staging
-
+    
     test:
         tags: ['docker']
-        image: $IMAGE
+        image: $IMAGE:$TAG
         stage: test
-        dependencies:
-            - build
         script:
+            - pwd
+            - ls -la
             - npm run test
         environment:
             name: staging
-
+    
     deploy to prod:
         tags: ['kubectl']
         stage: deploy to prod
@@ -309,8 +341,8 @@ Gitlab is abstracting away a lot of the concepts and commands you'd need to know
         dependencies: []
         script:
             - echo 'I deploy things to production'
-            - kubectl --namespace=production set image deployment/nodejs nodejs=jojomickymack/thng03:latest
-    # The first time you deploy, you must swap the command above for the one below (the one above is for updating the image on a running pod, the one below is for first time deployment)        
-    #        - kubectl --namespace=production run nodejs --image=jojomickymack/thng03
+    # the 'run' command is for first time deployment, the 'set' is for all deployments following that
+            - kubectl --namespace=production run $DEPLOYMENT --image=$USER/$REPO:$TAG
+    #        - kubectl --namespace=production set image deployment/$DEPLOYMENT $DEPLOYMENT=$USER/$REPO:$TAG
         environment:
             name: production
