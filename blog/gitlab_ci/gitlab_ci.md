@@ -8,11 +8,15 @@ After a lot of trial and error finding out for myself what sets gitlab apart fro
 
 The point of gitlab is 'auto dev-ops' - ok, what's that supposed to mean? Well, let's start with the auto part - you can put a little script in the root directory of your repo (the file is called 'gitlab-ci.yml') and it will execute every time there's any push to any branch of your repo. You can define stages of a build, run shell commands, tests, whatever you want, as a routine to build your app somewhere.
 
-Certain directives can plug into features of the gitlab interface, giving you a report on the build and deploy changes to production under certain conditions.
+Certain directives can plug into features of the gitlab interface, giving you a report on the build and deploy changes to production under certain conditions - for example, if after building the application in an isolated environment and passing a bunch of tests, the application is automatically deployed to a staging environment.
 
-'Dev-ops' is a little bit of a confusing term because it describes a culture - similar to 'agile', it consists of some traits and methodologies, but the actual workflow tends to be defined by the team involved. I take it to mean 'the part of development that isn't the actual development'. Provisioning an environment and installing/configuring various supporting tools, monitoring what is going on in the environment, keeping it secure and detecting/resolving problems.
+The path from development to production is called a pipeline, and its efficiency correlates directly to how often feature deliveries and bug fixes can occur.  
+
+'Dev-ops' is a little bit of a confusing term because it describes a culture - similar to 'agile', it consists of some traits and methodologies, but the actual workflow tends to be defined by the team involved. I take it to mean 'the part of development that isn't the actual development'. Provisioning an environment, installing/configuring various tools, monitoring what is going on in the environment, and keeping it secure and detecting/resolving problems are things that can take a lot of time and effort.
 
 That's a lot of people's job description - but with the emphasis on automation and some of the new technologies that exist now, the work to take advantage of modern dev ops practices is easier. Gitlab brings those technologies together in a way that enables small projects and prototypes to be built from the ground up with cutting edge dev-ops practices.
+
+'Modern dev-ops' recognizes that when all those processes are automated and streamlined, that maintenance is lower and more time can be spent on implementing features
 
 ## The '.gitlab-ci.yml' File
 
@@ -22,7 +26,9 @@ The 'integration' and 'delivery' parts refer to different 'pipeline' steps. Your
 
 Git, the command line tool, is a big part of the idea of 'continuous' concept - before git, versioning was handled in a completely different way - basically, all of the new features would be put on a list, and when they were all ready, there would be a new build and they'd call it a certain version number. If some features were still being worked on, it would hold up the entire release. That's referred to as 'waterfall' methodology, whereas 'agile' implies that there are more frequent, smaller releases, that way nothing gets held up. Git is the perfect tool for managing that kind of versioning.
 
-The idea is that small changes can constantly be coming in and getting pushed through the pipeline and delivered to production.
+Besides that, docker has gained a lot of traction for the same reasons. Docker allows for you to essentially build and push changes to an environment - called a 'container' - that can easily be deployed by using the 'docker run' command. The idea behind containers is that applications that live inside of them are more predictable and require less maintenance. Developing and deploying apps in containers also helps in isolating different pieces of an infrastructure. 
+
+The idea is that small changes can constantly come in and get pushed through the pipeline and delivered to production rapidly.
 
 ## The Most Basic CI Script
 
@@ -30,7 +36,7 @@ In any case, when you click that 'set up CI/CD' button, you'll be given a blank 
 
     my job:
         script:
-             - echo "this is my script"
+             - echo 'this is my script'
              
 If you save that, then click on the 'ci/cd' tab and select 'pipelines', you'll see that it's tried to run your script. If you are using gitlab.com, it will pull a docker image and execute your script there - but there's a lot of ways you can configure where this echo command will actually be run. Any environment, as long as there is a 'gitlab runner' installed there registered to your project could check out your repo and run the script. I'll talk about some of those options later.
 
@@ -42,36 +48,51 @@ Let's add another job, one that runs a command that screws up.
 
     my job 1:
         script:
-             - echo "this is my script"
+             - echo 'this is my script'
              
     my job 2:
         script:
-             - I don't like shots, they're owie 
+             - this command doesn't exist 
              
 If you've got your repo cloned, you should just change the file in a text editor on your local machine. Save the change, add it and commit it, then push. Since we're just screwing around, you should probably have master checked out and push directly to master. Whenever any branch gets pushed it'll run the pipeline again.
 
 Now you see the pipeline failed, and within that two jobs listed - the first one paseed and last one failed. This illustrates the most basic example of how the output of these jobs can be displayed to you.
 
-Now let's try 3 jobs, each with a different stage. Any value for a 'stage' directive that isn't 'build', 'test', or 'deploy' is invalid.
+Now let's try four jobs, each with a different stage. Any value for a 'stage' directive that isn't 'build', 'test', or 'deploy' is invalid unless you list it in a 'stages' block. Also included is the use of variables, which are usually in all caps and when used have a '$'. 
+
+    variables:
+        MYVAR: 'this is a variable'
+
+    stages:
+        - build
+        - test
+        - deploy
+        - extra
 
     my job 1:
         stage: build
         script:
-             - echo "this is my script"
+            - echo 'this is my script'
 
     my job 2:
         stage: test
         script:
-             - I don't like shots, they're owie
+            - echo $MYVAR
 
     my job 3:
         stage: deploy
         script:
-             - echo "back to being good"
+            - this command doesn't exist
+             
+    my extra job
+        stage: extra
+        script:
+            - echo 'back to being good'
 
-Now in your pipeline view you get to see 3 stages - there's one job in each stage and the test stage failed - the deploy stage wasn't even run. If any stage fails, it'll skip the rest.
 
-So you can see now the basics of what the yml file is for. In reality, the shell commands run in the build stage would be for installing dependencies and maybe compiling your javascript and less files if you're building a website, running a test suite or executing a shell script that clones other repos and configures the environment.
+Now in your pipeline view you get to see four stages - there's one job in each stage and if one for them fails it'll skip the rest.
+
+So you can see now the basics of what the yml file is for. You can imagine how the shell commands in different stages would be for installing dependencies and maybe compiling your javascript and less files if you're building a website. You might run a test suite or execute a shell script that clones other repos and configures the environment. You might run some docker commands to do a build and push to a repo, and other jobs might pull the same image.
 
 This is typical of what you see in other repos on gitlab.com - it's pre-configured to use docker to pull images that you've registered to your project, or any other docker images available on docker hub. You might want to use docker, or maybe just download a gitlab runner to your local machine and register it to your project. I'll go over what those are next.
 
@@ -83,16 +104,21 @@ The first step is to download a gitlab runner binary to your system [from here](
 
 You basically put it somewhere it can remain (not your downloads folder) and change the name to 'gitlab-runner.exe' (if you're on windows) and use the terminal to navigate to wherever it is and run
 
-    ./gitlab-runner install
     ./gitlab-runner register
     
 You'll be prompted with some questions - it asks for the gitlab domain (gitlab.yourdomain.com or the ipaddress of your machine if you've installed gitlab yourself), and a token code from your project. It tells you what these are supposed to be if you click on 'settings' -> 'CI/CD' -> 'runners' in your project and look under 'set up a specific runner'. The token for your project is also shown under 'general pipeline' under 'runner token'.
 
 Put nothing in for tags and enter 'shell' for the executor setting. Whatever you put in here gets saved to the 'config.toml' and running the register command again will overwrite it.
 
+If you have docker installed, you can choose the 'docker' executor and then if you have an 'image:' field in your '.gitlab-ci.yml' file, it will run that image and your commands will be executed inside that container.
+
+After registering your runner, a 'config.toml' file will be created - usually in a '~/.gitlab-runner' directory on linux. If you should ever run the gitlab-runner as sudo, it will go into 'system mode' and the config file will live in '/etc/gitlab-runner/'.
+
 Enter the command below and your running will then standby waiting for jobs.
 
     ./gitlab-runner run
+
+Obviously for pipelines to really be automated, you're not going to want to have to do that part manually - you can install gitlab-runner as a service or something and just have it constantly be checking for jobs. You could add it to your system's startup so it's always ready.
 
 You may wonder what 'tags' are, and what it's talking about when it asks for you to choose an 'executor'.
 
@@ -113,7 +139,7 @@ If a runner has a tag that doesn't match what's in your job's 'tags array', you'
 
 Many people set up virtual environments where they set up their runners - the executor is associated with the type of environment. Docker and kubernetes are popular choices, so there are special executors specifically for those. If you're installing on a physical windows or linux machine, choosing 'shell' will work.
 
-If you have docker installed, choose the 'docker' executor. You'll be asked for a default image that gets pulled and when the runner runs your pipeline it will do so in that docker container.
+If you have docker installed, choose the 'docker' executor. You'll be asked for a default image that gets pulled and when the runner runs your pipeline it will do so in that docker container. Note that if you are using 'gitlab.com', unless you've registered your own runners, the default executor will be using docker.
 
 ## Having Your Runner Run Your Pipeline On Your Local Machine
 
@@ -181,19 +207,9 @@ If you're using a tool that generates html reports, putting them into the 'publi
             paths:
                 - public
 
-## Docker Registry
+## More On Artifacts
 
-In the example above, consider if you had more configuration than you wanted to do in a build script. What if you needed something besides ruby installed, and you didn't want to install it using apt-get every time the pipeline was run.
-
-I set up a different pages website that required the 'go' programming language and a special command line app called [hugo](https://gohugo.io). Rather than get all that installed in my script, I put in a directive to pull a docker image that had all of that already. It goes at the very top of the '.gitlab-ci.yml' file.
-
-    image: registry.gitlab.com/pages/hugo:latest
-    
-That's the docker image that's registered to the ['pages' example for a hugo website](https://gitlab.com/pages/hugo/container_registry). Any gitlab project can have a special docker containers associated with it like that, or you could just pull any of the docker images available in the [docker hub](https://hub.docker.com/explore/).
-
-## Artifacts
-
-The 'artifacts' directive was used in the '.gitlab-ci.yml' files that build 'pages' in gitlab - you can actually upload whatever files you want to gitlab inside of a pipeline.
+The 'artifacts' directive was used in the '.gitlab-ci.yml' example above to enable the 'pages' feature - but you can actually upload whatever files you want to gitlab inside of a pipeline.
 
     text file:
         script:
@@ -204,6 +220,22 @@ The 'artifacts' directive was used in the '.gitlab-ci.yml' files that build 'pag
                 - reports/output.txt
 
 There's a variety of reasons someone might want to do that - maybe there's an log where errors might be recorded somewhere that could be uploaded to gitlab immediately after a failure. Any artifacts will be downloadable from the 'pipeline' and 'jobs' views.
+
+Another use case is preserving data between jobs - for example, if you're running 'npm install' in the 'build' stage, then running 'npm start test' in the 'test' stage, the 'node_modules' directory won't be there in the 'test' stage unless you do something to keep it around.
+
+Basically, you would just replace the artifact path in the example above with 'node_modules/', and make sure that the 'test' job's dependency is the 'build' job. It's smart to include an 'expire_in:' field in the artifacts block so gitlab will be able to preserve it long enough for the rest of the pipeline to use, but delete it afterwards. Obviously, there's no reason to keep the 'node_modules' directory saved on gitlab servers indefinitely.
+
+## Docker Registry
+
+In the example above, consider if you had more configuration than you wanted to do in a build script. What if you needed something besides ruby installed, and you didn't want to install it using apt-get every time the pipeline was run.
+
+I set up a different pages website that required the 'go' programming language and a special command line app called [hugo](https://gohugo.io). Rather than get all that installed in my script, I put in a directive to pull a docker image that had all of that already. It goes at the very top of the '.gitlab-ci.yml' file.
+
+    image: registry.gitlab.com/pages/hugo:latest
+    
+That's the docker image that's registered to the ['pages' example for a hugo website](https://gitlab.com/pages/hugo/container_registry). Any gitlab project can have a special docker containers associated with it like that, or you could just pull any of the docker images available in the [docker hub](https://hub.docker.com/explore/).
+
+If you incorporate 'docker executors' into your pipeline, you can push and pull using your own special image in the project's docker registry, which will make it that much easier for you to share your project with someone else - instead of cloning your repo, making sure they have the dependencies, then building it and figuring out how to run it - you could have all that baked into the docker image - all anyone else would have to do to run the app is just do 'docker run gitlab-registry-address' and that's it.
 
 ## Testing
 
@@ -229,6 +261,10 @@ When a merge request is submitted, the pipeline is run on the master branch _and
 
 It's a really nice way to prominently show what needs to be fixed before a branch can be merged into the master branch.
 
+Note - some have pointed out that if your tests failed when you pushed a branch, it's kind of strange that you'd actually submit a merge request. Oddly, that's the only scenario where the specifics of which test failed and what the assertion was gets shown in the gitlab interface. Unless it's a merge request, you're only shown the job's pass or fail status, and more detailed info about it would need to be viewed in the job's console output or in an artifact uploaded to gitlab.
+
+That detail kind of makes the 'junit.xml' support pointless, it's much better to use the 'pages' feature to display html test results, that way you have full control over it.
+
 ## Bonus - Install Gitlab On Your Local Machine
 
 I was intrigued by the prospect that gitlab [can be installed on a raspberry pi](https://about.gitlab.com/installation/#raspberry-pi-2), so I gave it a try. It works - but the performance is abysmal and I decided to instead install it on a dedicated ubuntu machine.
@@ -241,12 +277,12 @@ You could easily host this on a real website by registering 'gitlab.yourdomain.c
 
 note: after some trial and error, I found that you can easily get gitlab, gitlab-runners, and docker to all work if you replace the 'gitlab.yourdomain.com' argument in the install command with the ipaddress of the machine on the local network (not localhost or 127.0.0.1).
 
-That value is stored in the gitlab config file, which is '/etc/gitlab/gitlab.rb'. If you change it after installing, run 'sudo gitlab-ctl reconfigure'. When registering your gitlab runner, make sure to give it the same ipaddress when it asks for the gitlab domain.
+That value is stored in the gitlab config file, which is '/etc/gitlab/gitlab.rb'. If you change it after installing, run 'sudo gitlab-ctl reconfigure' and 'sudo gitlab-ctl restart'. When registering your gitlab runner, make sure to give it the same ipaddress when it asks for the gitlab domain.
 
 ## Summary
 
-So that's what I learned about Gitlab as I was tooling around with it. The platform is a great place to learn a simple way be introduced to all of the tenants of modern 'dev-ops' culture and allow yourself to be indoctrinated into it.
+So that's what I learned about Gitlab as I was tooling around with it. The platform is a great place to learn a simple way be introduced to all of the tenants of modern 'dev-ops' culture and try to adopt the traits of it that work for you.
 
-Gitlab must have had to strive to keep things simple, and the way the pipelines, the gitlab runners, and the docker registry all fits together is really appealing.
+Some of the alternatives to gitlab tend to be _really_ complicated, and gitlab's interface, which pretty much looks just like github, is less intimidating.
 
-Most other development pipelines resemble the things I've gone over here, but they tend to be _really_ complicated. If gitlab has achieved one thing here, it's bringing dev-ops to a new audience that don't have time to set one of the other options up.
+Gitlab's availability and easy installation make it compelling to use for even the smallest projects.

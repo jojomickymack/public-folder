@@ -120,9 +120,9 @@ When you register the gitlab runner, choose 'docker' as the executor and change 
             - docker tag "${CI_BUILD_REF_NAME}_${CI_BUILD_REF}" $IMAGE
             - docker push $IMAGE
 
-What's kind of crazy is that you can actually pull a docker image that has docker _inside_ of it, and do the build there.
+What's kind of crazy is that you can actually pull a docker image that has docker _inside_ of it, and do the build there. According to the docker forums though, the better practice is to mount your running '/var/run/docker.sock' file as a volume in the container. Interacting with docker in that way causes containers to created _outside_ the container.  
 
-Note: In order to avoid exposing the password, I ended up using the  [official docker credential helper](https://github.com/docker/docker-credential-helpers). In order to use that, I ended up using a gitlab 'shell' executor so it could pick up the docker credentials which aren't available inside the container.
+Note: In order to avoid exposing the password, I ended up using the  [official docker credential helper](https://github.com/docker/docker-credential-helpers). In order to use that, I ended up using a gitlab 'shell executor' so it could pick up the docker credentials which aren't available inside the container. There's probably a clever way to expose the credential helper inside of a container so you can use the 'docker executor' instead which I haven't figured out yet.
 
 At this point, you could stop reading and you could run a docker-based pipeline using gitlab and deploy by executing a 'docker pull' using a gitlab-runner on the production server. 
 
@@ -164,7 +164,7 @@ If you type 'kubectl cluster-info', you'll be shown the ip and port that your cl
 
 Now run 'minikube dashboard' - it will open up a control center in your default browser at the same ip address but a different port. Look over all of the different tables and charts here - if you've never used kubernetes it's sure to be pretty confusing, but it makes a good introduction to what makes up a kubernetes instance.
 
-This part of the write-up is a work in progress. It will go over what these components are.
+Take a look at this [kubectl cheat sheet](https://dzone.com/articles/kubectl-commands-cheat-sheet) for an overview of the commands people use.
 
 - cluster
 
@@ -184,7 +184,7 @@ Minikube is an example of a node - it's a kubernetes cluster that kubectl can di
 
 - volumes
 
-Volumes is a mechanism for mounting shared storage that's used by containers.
+Volumes is a mechanism for mounting shared storage that's used by containers. For example, if you wanted to expose the host machine's docker command line tool instance to a container, you could do so with this command in the Dockerfile - 'VOLUME /var/run/docker.sock'.
 
 - roles
 
@@ -192,10 +192,7 @@ It's possible to restrict permissions available to specific namespaces - further
 
 - deployments
 
-In order to add pods to the cluster, there must be a deployment. Deployments can be defined in json or yaml with many different options for how kubernetes should handle it.
-
-- jobs
-- replica sets
+In order to add pods to the cluster, there must be a deployment. Deployments can be defined in json or yaml with many different options for how kubernetes should handle it. The pods that a deployment creates are part of the deployment, ie, if you delete a deployment, the pods it created are gone.
 
 ## Connecting Your Kubernetes Instance To Gitlab
 
@@ -214,7 +211,7 @@ Create a json file like the one below - if you wish to have a 'staging' and 'pro
         }
     }
     
-It's common to give kubernetes instructions by loading json like this - the command you need to load it is 'kubectl create -f gitlab.json'.
+It's common to give kubernetes instructions by loading json like this - the command you need to load it is 'kubectl create -f gitlab.json'. Remember this command - telling kubernetes to do something described in a json file with the 'kubectl create' or 'kubectl apply' commands is more flexible way of controlling kubernetes.
 
 In any project that doesn't have ci set up already, you'll see a button that says 'add a kubernetes cluster' which you can click on, or just click on the 'operations' menu and select 'kubernetes'. There's a green button inviting you to 'add a kubernetes cluster'.
 
@@ -274,11 +271,15 @@ What that does in kubernetes is continues to run the old pod as the new one come
 
 As for doing the initial deployment, there's a different command for that - it's a run command, which creates a deployment and creates the pod. I don't think deployment pipeline should be rolling out the initial deployment - it's pretty easy to do manually, but you could always just have a different script containing the 'kubectl run' commands needed for that scenario. 
 
+Once you've done a deployment, you can export it into json or yaml with a command like the one below. If you want to, you can just run 'kubectl create -f staging.yml' instead of using the command.
+
+    kubectl --namespace=staging get deployment nodejs -o yaml --export > staging.yml
+
 You can't do kubectl commands from inside of the gitlab-runner pod, and it's unclear to me why you'd want for builds and tests to happen inside of your cluster anyway, so I just used a 'shell executor' to execute these commands for staging and production namespaces.
 
 The whole thing works because the first step in the pipeline is for rebuilding the docker image and pushing it to dockerhub. The 'build' and 'test' jobs pull that updated image down and run 'npm install' and 'npm start test' scripts respectively.
 
-Since it's long, I'll add the entire '.gitlab-ci.yml' file further down.
+Since it's long, I'll add the entire '.gitlab-ci.yml' file further down. Note that deploying to production is a manual job in the example, so it doesn't happen until you click on the play button in gitlab.
 
 ## Summary
 
@@ -286,9 +287,21 @@ These are my notes on getting kubernetes set up on the same machine that has git
 
 The dev-ops features gitlabs are kind of catering towards tools like kubernetes and docker, and by working with them on a small scale you make the transition to being scaled up a lot smoother.
 
-
-
 ## .gitlab-ci.yml
+
+The example below shows the use of variables to make it easy to use docker to build a nodejs project. Keep in mind that the 'build docker' job will fail if the docker command isn't authenticated. The operating system running that job has [docker credential helper](https://github.com/docker/docker-credential-helpers) installed, so authentication is automatic.
+
+The project that this build script is for has three [gitlab runners](https://docs.gitlab.com/runner/install) registered - two of them are 'shell executors' - one for running 'docker' commands, and one for running 'kubectl' commands. The third runner is a 'docker executor' - the 'image' field in the job references the same repo that the 'build docker' job pushed to in the first stage.
+
+Note that if the pods are being deployed for the first time, a deployment must be created with the 'kubectl run' command instead of the 'kubectl set' commands which create new pods with the updated docker image before terminating the ones running the old one.
+
+Deployments can also be created from a yaml file which can be exported from kubernetes after doing a test deployment and running the command below.
+
+    kubectl --namespace=production get deployment nodejs -o yaml --export > production.yml
+
+Note the use of the 'tag' command in the 'build docker' job. Without a tag, you will always be using the default tag 'latest'. This is bad practice because you'll never know which version of 'latest' is running. The idea is that you would change the tag name for an important release, then you would more easily be able to observe that it's been replicated.
+
+The last thing I wanted to point out is the use of 'when: manual' for the production deployment job. What that means is when you run the pipeline, it stops and waits for you to click on the 'deploy to production' button in gitlab before proceeding. The empty dependencies array on the following line is a workaround for a bug where manual deployment fails because of unmet dependencies unless you explicitly tell gitlab that there aren't any.
 
     variables:
         USER: 'dockerusername'
@@ -308,7 +321,7 @@ The dev-ops features gitlabs are kind of catering towards tools like kubernetes 
         tags: ['shell']
         stage: docker
         script:
-            - docker build -t $IMAGEID .
+            - docker build .
             - docker tag $IMAGEID $IMAGE:$TAG
             - docker push $IMAGE:$TAG
     
@@ -319,6 +332,8 @@ The dev-ops features gitlabs are kind of catering towards tools like kubernetes 
             - echo 'I deploy things to stage'
     # the 'run' command is for first time deployment, the 'set' is for all deployments following that
     #        - kubectl --namespace=staging run $DEPLOYMENT --image=$USER/$REPO:$TAG
+    # alternatively, use kubectl create -f with the yml you exported from a deployment previously
+    #       - kubectl --namespace=staging create -f staging.yml
             - kubectl --namespace=staging set image deployment/$DEPLOYMENT $DEPLOYMENT=$USER/$REPO:$TAG
         environment:
             name: staging
@@ -328,8 +343,6 @@ The dev-ops features gitlabs are kind of catering towards tools like kubernetes 
         image: $IMAGE:$TAG
         stage: test
         script:
-            - pwd
-            - ls -la
             - npm run test
         environment:
             name: staging
